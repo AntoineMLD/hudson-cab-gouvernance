@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(dbt compile *)",
+      "Bash(dbt run *)",
+      "Bash(dbt test *)",
+      "Bash(dbt build *)",
+      "Bash(dbt ls *)",
+      "Bash(python *)",
+      "Bash(pytest *)",
+      "Bash(head -n *)",
+      "Bash(wc -l *)"
+    ],
+    "ask": [
+      "Bash(dbt run --full-refresh *)",
+      "Bash(snowsql *)"
+    ],
+    "deny": [
+      "Read(./data/**)",
+      "Read(./target/**)",
+      "Read(./dbt_packages/**)",
+      "Read(./logs/**)",
+      "Read(./.venv/**)",
+      "Read(./node_modules/**)",
+      "Read(./profiles.yml)",
+      "Read(./.env)"
+    ]
+  }
+}
