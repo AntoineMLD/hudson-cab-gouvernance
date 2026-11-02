@@ -8,3 +8,8 @@
 
 # Données brutes
 data/*.csv
+
+# Claude Code
+.claude/
+CLAUDE.md
+CLAUDE.local.md
