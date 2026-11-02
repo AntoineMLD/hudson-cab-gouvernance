@@ -7,4 +7,4 @@
 .DS_Store
 
 # Données brutes
-*.csv
+data/*.csv
