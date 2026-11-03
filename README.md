@@ -51,6 +51,17 @@ Le détail de la confrontation, règle par règle, est dans [`docs/VEILLE.md`](d
 | `RAW.DRIVER_SHIFTS` (purge R1) | purger les services des chauffeurs purgés, avant les chauffeurs | `T_PURGE` (rôle des outils) | R1 s'applique partout où la donnée du chauffeur a été copiée. Avec le fichier actuel, 46 chauffeurs sont purgés et 0 service (services de janvier à mars 2025, chauffeurs partis avant novembre 2021) ; avec un fichier historique complet, la purge des services évite de garder l'activité de chauffeurs supprimés et des services orphelins, qui bloqueraient la règle `service_rattache`. Les services d'abord : une fois le chauffeur supprimé, on ne saurait plus lesquels lui appartenaient. |
 | Durée de rétention | `DATA_RETENTION_TIME_IN_DAYS = 1` posé explicitement sur les 4 tables RH | rôle des outils (propriétaire) | Règle R2. Posée table par table pour ne pas dépendre du réglage du compte ou de la base. `DIM_DEPOT` n'est pas concernée (aucune donnée personnelle). |
 
+### Les règles de qualité
+
+Mesurées chaque jour sur `RAW` par la tâche `T_QUALITE`, avec le rôle des outils (qui voit les vraies valeurs : une règle mesurée sur des valeurs masquées ne mesurerait rien). Chaque exécution ajoute une ligne par règle dans `GOUVERNANCE.QUALITE_RESULTATS` (`OK` si `nb_anomalies <= seuil`, sinon `ALERTE`).
+
+| Règle | Énoncé | Fichier | Seuil | Gravité | Mesure au 03/11/2026 |
+|---|---|---|---|---|---|
+| `licence_unique` | un numéro de licence n'appartient qu'à un chauffeur | `controles/licence_unique.sql` (fourni) | 0 | avertissement | ______ |
+| `service_rattache` | chaque service appartient à un chauffeur connu | `controles/service_rattache.sql` | 50 services | **bloquante** : `T_TABLES` ne reconstruit pas `MARTS` | ______ |
+| `depot_connu` | le dépôt est écrit exactement `Bronx`, `Brooklyn` ou `Queens` (chauffeurs et services) | `controles/depot_connu.sql` | 0 | avertissement | ______ |
+| `telephone_renseigne` | chaque chauffeur en poste a un téléphone | `controles/telephone_renseigne.sql` | 5 % des chauffeurs en poste, converti en nombre à la mesure | avertissement | ______ |
+
 ### Ordre d'exécution des scripts
 
 Chaque script s'exécute en entier dans une feuille Snowsight, avec le rôle indiqué.
