@@ -146,6 +146,8 @@ Pour le chauffeur `D0003` (dépôt Queens), la valeur que chaque rôle doit lire
 
 **Faux rouge rencontré** : la ligne `SELECT * ... WHERE driver_id = 'D0003'` lancée seule, sans ses `USE ROLE`, a renvoyé toutes les valeurs en clair. La requête était partie avec le dernier rôle utilisé dans la feuille (`TRANSFORMER`), pas avec `ANALYSTE`. Relancée avec son bloc (`USE SECONDARY ROLES NONE; USE ROLE ANALYSTE; USE WAREHOUSE ...;`), elle donne bien les valeurs masquées. Règle retenue : chaque test se lance avec ses `USE`, et on vérifie le rôle affiché avant de lire le résultat.
 
+**Deuxième faux résultat** : les règles de qualité lancées avec `ACCOUNTADMIN` (rôle par défaut de la feuille) ont donné `licence_unique` = 353 au lieu de 4 : les licences masquées valent toutes `*****`. Relancées avec `TRANSFORMER` : 4. Le masquage protège aussi des contrôles mal lancés : la qualité doit être mesurée par le rôle des outils.
+
 ### Le pipeline fonctionne toujours
 
 | N° | Vérification | Attendu | Obtenu | Vert ? |

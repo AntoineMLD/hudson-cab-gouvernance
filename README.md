@@ -57,10 +57,14 @@ Mesurées chaque jour sur `RAW` par la tâche `T_QUALITE`, avec le rôle des out
 
 | Règle | Énoncé | Fichier | Seuil | Gravité | Mesure au 03/11/2026 |
 |---|---|---|---|---|---|
-| `licence_unique` | un numéro de licence n'appartient qu'à un chauffeur | `controles/licence_unique.sql` (fourni) | 0 | avertissement | ______ |
-| `service_rattache` | chaque service appartient à un chauffeur connu | `controles/service_rattache.sql` | 50 services | **bloquante** : `T_TABLES` ne reconstruit pas `MARTS` | ______ |
-| `depot_connu` | le dépôt est écrit exactement `Bronx`, `Brooklyn` ou `Queens` (chauffeurs et services) | `controles/depot_connu.sql` | 0 | avertissement | ______ |
-| `telephone_renseigne` | chaque chauffeur en poste a un téléphone | `controles/telephone_renseigne.sql` | 5 % des chauffeurs en poste, converti en nombre à la mesure | avertissement | ______ |
+| `licence_unique` | un numéro de licence n'appartient qu'à un chauffeur | `controles/licence_unique.sql` (fourni) | 0 | avertissement | 4 → ALERTE (4 licences partagées entre plusieurs chauffeurs) |
+| `service_rattache` | chaque service appartient à un chauffeur connu | `controles/service_rattache.sql` | 50 services | **bloquante** : `T_TABLES` ne reconstruit pas `MARTS` | 25 → OK (25 services orphelins dans le fichier d'origine, sous le seuil de 50) |
+| `depot_connu` | le dépôt est écrit exactement `Bronx`, `Brooklyn` ou `Queens` (chauffeurs et services) | `controles/depot_connu.sql` | 0 | avertissement | 9 → ALERTE (dépôts mal écrits dans le fichier ; corrigés dans STAGING, mais la source reste fausse) |
+| `telephone_renseigne` | chaque chauffeur en poste a un téléphone | `controles/telephone_renseigne.sql` | 5 % des chauffeurs en poste, converti en nombre à la mesure | avertissement | 12 → OK (seuil : 14,50 = 5 % de 290 chauffeurs en poste) |
+
+**Pourquoi le rôle des outils** : lancée avec `ACCOUNTADMIN`, la règle `licence_unique` a renvoyé 353 au lieu de 4. Pour l'administrateur, toutes les licences sont masquées (`*****`) : `COUNT(DISTINCT tlc_license_number)` ne voit qu'une valeur, et 354 − 1 = 353. Une règle de qualité mesurée sur des valeurs masquées ne mesure rien : les règles tournent avec `TRANSFORMER`, dans la tâche `T_QUALITE`. `service_rattache` et `depot_connu` donnaient le bon résultat, car `driver_id` n'est jamais masqué et `depot` n'est pas tagué.
+
+**Qui corrige** : une `ALERTE` signale une erreur du fichier source. Elle se corrige dans le système RH, puis par un nouveau chargement ; l'équipe data ne réécrit pas `RAW` à la main (voir l'écart « détection sans correction »).
 
 ### Ordre d'exécution des scripts
 
@@ -84,7 +88,9 @@ Chaque script s'exécute en entier dans une feuille Snowsight, avec le rôle ind
 | 14 | `snowflake/rh/purge_rh.sql` | `TRANSFORMER` | 46 chauffeurs purgés (au 03/11/2026), 0 service ; `RAW.DRIVERS` : 354 |
 | 15 | `snowflake/rh/marts/dim_driver.sql`, puis `mart_driver_monthly.sql` | `TRANSFORMER` | `DIM_DRIVER` : 354 ; `MART_DRIVER_MONTHLY` : 914 |
 | 16 | `snowflake/rh/conservation_rh.sql` | `TRANSFORMER` | `retention_time` = 1 sur les 4 tables RH |
-| 17 | ______ | | |
+| 17 | `snowflake/rh/controles/*.sql` (4 règles) | `TRANSFORMER` | licence_unique 4, service_rattache 25, depot_connu 9, telephone_renseigne 12 / 14,50 |
+| 18 | `snowflake/rh/catalogue/v_catalogue.sql` | `TRANSFORMER` | 24 lignes ; `ANALYSTE` lit la vue et y trouve les 3 tables |
+| 19 | ______ | | |
 
 ### Le chargement, étape par étape
 
