@@ -45,6 +45,8 @@ DECLARE
   nb_licence      INTEGER;
   nb_orphelins    INTEGER;
   nb_depot        INTEGER;
+  nb_depot_chauf  INTEGER;
+  nb_depot_serv   INTEGER;
   nb_telephone    INTEGER;
   seuil_telephone NUMBER(18,2);
   seuil_rattache  NUMBER(18,2) DEFAULT 50;    -- SEUIL BLOQUANT (contrat : 50 services). Mettre 10 pour prouver le blocage.
@@ -60,11 +62,15 @@ BEGIN
   FROM NYC_TAXI.RAW.DRIVER_SHIFTS s
   WHERE NOT EXISTS (SELECT 1 FROM NYC_TAXI.RAW.DRIVERS d WHERE d.driver_id = s.driver_id);
 
-  SELECT (SELECT COUNT(*) FROM NYC_TAXI.RAW.DRIVERS
-           WHERE depot IS NULL OR depot NOT IN ('Bronx', 'Brooklyn', 'Queens'))
-       + (SELECT COUNT(*) FROM NYC_TAXI.RAW.DRIVER_SHIFTS
-           WHERE depot IS NULL OR depot NOT IN ('Bronx', 'Brooklyn', 'Queens'))
-  INTO :nb_depot;
+  SELECT COUNT(*) INTO :nb_depot_chauf
+  FROM NYC_TAXI.RAW.DRIVERS
+  WHERE depot IS NULL OR depot NOT IN ('Bronx', 'Brooklyn', 'Queens');
+
+  SELECT COUNT(*) INTO :nb_depot_serv
+  FROM NYC_TAXI.RAW.DRIVER_SHIFTS
+  WHERE depot IS NULL OR depot NOT IN ('Bronx', 'Brooklyn', 'Queens');
+
+  nb_depot := nb_depot_chauf + nb_depot_serv;
 
   SELECT COUNT_IF(phone IS NULL OR TRIM(phone) = ''), ROUND(COUNT(*) * 0.05, 2)
   INTO :nb_telephone, :seuil_telephone
