@@ -9,37 +9,38 @@ Copier ce fichier sous le nom `docs/ACCES.md`.
 
 ## Partie 1 — Carte des droits
 
-À compléter du jour 1 au jour 2. Dans Snowflake, faire une action demande d'être propriétaire de l'objet ou d'avoir reçu un privilège précis. Cette carte vous évite de chercher, à chaque erreur `Insufficient privileges`, quel droit manque et à qui.
-
-Vérifiez chaque ligne dans la documentation des privilèges (ressources du jour 2), puis avec `SHOW GRANTS TO ROLE …`.
+Dans Snowflake, faire une action demande d'être propriétaire de l'objet ou d'avoir reçu un privilège précis. Les droits ci-dessous sont créés par `snowflake/gouvernance/01_gouvernance.sql` (jour 1) et vérifiés avec `SHOW GRANTS TO ROLE GOUVERNANCE;` (11 droits, aucun `SELECT` sur une table RH) et `SHOW GRANTS TO ROLE TRANSFORMER;`. Les objets marqués « jour 2 » ou « jour 3 » ne sont pas encore créés.
 
 ### Qui possède quoi
 
-Le propriétaire d'un objet est le rôle qui l'a créé.
+Le propriétaire d'un objet est le rôle qui l'a créé, ou celui à qui la propriété a été donnée.
 
-| Objet | Propriétaire |
-|---|---|
-| Tables de `RAW` et de `MARTS` | le rôle des outils |
-| Schéma `GOUVERNANCE` | |
-| Tags | |
-| Politiques de masquage | |
-| Politique d'accès par ligne | |
-| Table `ACCES_DEPOT` | |
-| Table `QUALITE_RESULTATS` | |
-| Vue `V_CATALOGUE` | |
+| Objet | Propriétaire | Comment |
+|---|---|---|
+| Tables de `RAW` et de `MARTS`, vues de `STAGING`, stage `RH_STAGE` | `TRANSFORMER` | créées par les scripts de chargement et les SQL fournis |
+| Schéma `GOUVERNANCE` | `GOUVERNANCE` | créé par `ACCOUNTADMIN`, puis `GRANT OWNERSHIP ... COPY CURRENT GRANTS` |
+| Tags `SENSIBILITE`, `DONNEE_PERSONNELLE`, `DUREE_CONSERVATION` | `GOUVERNANCE` | créés par lui dans son schéma |
+| Politiques de masquage | `GOUVERNANCE` | jour 2 |
+| Politique d'accès par ligne | `GOUVERNANCE` | jour 2 |
+| Table `ACCES_DEPOT` | `GOUVERNANCE` | jour 2 |
+| Table `QUALITE_RESULTATS` | `GOUVERNANCE` | créée par lui dans son schéma |
+| Vue `V_CATALOGUE` | `TRANSFORMER` | jour 3, grâce à `CREATE VIEW` sur le schéma `GOUVERNANCE` |
 
 ### Qui fait quoi, avec quel droit
 
 | Action | Rôle qui la fait | Privilège nécessaire | Accordé par |
 |---|---|---|---|
-| Créer un tag | `GOUVERNANCE` | `CREATE TAG` sur le schéma, ou en être propriétaire | `ACCOUNTADMIN` |
-| Poser un tag sur une colonne de `DIM_DRIVER` | | | |
-| Créer une politique de masquage | | | |
-| Attacher une politique de masquage à un tag | | | |
-| Ajouter une politique d'accès par ligne à une table | | | |
-| Écrire une ligne dans `QUALITE_RESULTATS` | | | |
-| Lire `DIM_DRIVER` | | | |
-| Exécuter une requête | chaque rôle | | |
+| Créer un tag | `GOUVERNANCE` | être propriétaire du schéma `GOUVERNANCE` (ou `CREATE TAG` sur le schéma) | `ACCOUNTADMIN` (transfert de propriété du schéma) |
+| Poser un tag sur une colonne de `DIM_DRIVER` | `TRANSFORMER` | `APPLY` sur le tag, `USAGE` sur le schéma `GOUVERNANCE`, et être propriétaire de la table | `GOUVERNANCE` (propriétaire du tag et du schéma) |
+| Créer une politique de masquage | `GOUVERNANCE` | être propriétaire du schéma `GOUVERNANCE` (ou `CREATE MASKING POLICY` sur le schéma) | `ACCOUNTADMIN` (transfert de propriété du schéma) |
+| Attacher une politique de masquage à un tag | `GOUVERNANCE` | être propriétaire du tag et de la politique, et `APPLY MASKING POLICY` sur le compte | `ACCOUNTADMIN` (seul à pouvoir accorder un droit sur le compte) |
+| Ajouter une politique d'accès par ligne à une table | `GOUVERNANCE` | être propriétaire de la politique, et `APPLY ROW ACCESS POLICY` sur le compte (la table appartient à `TRANSFORMER`) | `ACCOUNTADMIN` |
+| Écrire une ligne dans `QUALITE_RESULTATS` | `TRANSFORMER` (tâche `T_QUALITE`) | `INSERT` sur la table, `USAGE` sur le schéma `GOUVERNANCE` | `GOUVERNANCE` (propriétaire de la table) |
+| Créer la vue `V_CATALOGUE` | `TRANSFORMER` | `CREATE VIEW` et `USAGE` sur le schéma `GOUVERNANCE` | `GOUVERNANCE` |
+| Lire `DIM_DRIVER` | `TRANSFORMER` (propriétaire) ; rôles métier (jour 2) | `USAGE` sur `NYC_TAXI` et sur `MARTS`, `SELECT` sur la table | `ACCOUNTADMIN` (jour 2, `02_roles_metier.sql`) |
+| Exécuter une requête | chaque rôle | `USAGE` sur le warehouse `NYC_TAXI_WH` | `ACCOUNTADMIN` |
+| Faire tourner les tâches planifiées | `TRANSFORMER` | `EXECUTE TASK` sur le compte, `CREATE TASK` sur `MARTS` | `ACCOUNTADMIN` (`00_installation.sql`) |
+| Trouver les tables pour y attacher des politiques, sans les lire | `GOUVERNANCE` | `USAGE` sur `NYC_TAXI`, `RAW` et `MARTS`, sans `SELECT` | `ACCOUNTADMIN` |
 
 ### Ce que cette carte permet à un rôle de défaire
 
