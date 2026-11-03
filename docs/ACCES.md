@@ -133,7 +133,7 @@ Pour le chauffeur `D0003` (dépôt Queens), la valeur que chaque rôle doit lire
 | `RH_PAIE` | `D0003`, Anthony, Suarez, `anthony.suarez3@mail.example`, `+1 (917) 555-2473`, `1981-12-07`, `5213863`, Queens : tout en clair | oui |
 | `RESP_DEPOT_QUEENS` | `D0003`, Anthony, Suarez, `*****`, `+1 (917) 555-2473`, `NULL`, `*****`, Queens : nom, prénom et téléphone en clair, le reste masqué | oui |
 | `RESP_DEPOT_BRONX` | à tester après l'étape 6 (avant le filtre par dépôt, la ligne est encore visible, masquée) | |
-| `ANALYSTE` | à compléter (`SELECT *` sur `D0003` et `driver_name` du mart, lancés un par un) | |
+| `ANALYSTE` | `D0003`, `*****`, `*****`, `*****`, `*****`, `1981-01-01`, `*****`, Queens ; `driver_name` du mart = `*****` : identifiant interne visible, année de naissance seulement, tout le reste masqué | oui |
 
 ### Cas limites
 
@@ -143,6 +143,8 @@ Pour le chauffeur `D0003` (dépôt Queens), la valeur que chaque rôle doit lire
 | 21 | `TRANSFORMER` | `SELECT first_name, email, birth_date FROM NYC_TAXI.RAW.DRIVERS WHERE driver_id = 'D0003'` | tout en clair (le pipeline lit les vraies valeurs) | Anthony, `anthony.suarez3@mail.example`, `1981-12-07` | oui |
 | 19 | `ANALYSTE` | `SELECT driver_id FROM NYC_TAXI.MARTS.DIM_DRIVER WHERE driver_id = 'D0003'` | `D0003` (identifiant interne visible, contrat section 4) | | |
 | 20 | `GOUVERNANCE` puis `RESP_DEPOT_QUEENS` | ajouter `('RESP_DEPOT_QUEENS', 'Brooklyn')` dans `GOUVERNANCE.ACCES_DEPOT`, sans toucher à la politique, puis `SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER` | 278 (161 + 117) ; après suppression de la ligne : de nouveau 161 | | |
+
+**Faux rouge rencontré** : la ligne `SELECT * ... WHERE driver_id = 'D0003'` lancée seule, sans ses `USE ROLE`, a renvoyé toutes les valeurs en clair. La requête était partie avec le dernier rôle utilisé dans la feuille (`TRANSFORMER`), pas avec `ANALYSTE`. Relancée avec son bloc (`USE SECONDARY ROLES NONE; USE ROLE ANALYSTE; USE WAREHOUSE ...;`), elle donne bien les valeurs masquées. Règle retenue : chaque test se lance avec ses `USE`, et on vérifie le rôle affiché avant de lire le résultat.
 
 ### Le pipeline fonctionne toujours
 
