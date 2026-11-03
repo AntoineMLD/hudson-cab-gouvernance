@@ -142,7 +142,7 @@ Pour le chauffeur `D0003` (dépôt Queens), la valeur que chaque rôle doit lire
 | 18 | `ANALYSTE` | `SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER WHERE email LIKE '%@%'` | 0 : le masque s'applique avant le filtre, l'analyste ne peut pas retrouver un chauffeur par son e-mail | 0 | oui |
 | 21 | `TRANSFORMER` | `SELECT first_name, email, birth_date FROM NYC_TAXI.RAW.DRIVERS WHERE driver_id = 'D0003'` | tout en clair (le pipeline lit les vraies valeurs) | Anthony, `anthony.suarez3@mail.example`, `1981-12-07` | oui |
 | 19 | `ANALYSTE` | `SELECT driver_id FROM NYC_TAXI.MARTS.DIM_DRIVER WHERE driver_id = 'D0003'` | `D0003` (identifiant interne visible, contrat section 4) | | |
-| 20 | `GOUVERNANCE` puis `RESP_DEPOT_QUEENS` | ajouter `('RESP_DEPOT_QUEENS', 'Brooklyn')` dans `GOUVERNANCE.ACCES_DEPOT`, sans toucher à la politique, puis `SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER` | 278 (161 + 117) ; après suppression de la ligne : de nouveau 161 | | |
+| 20 | `GOUVERNANCE` puis `RESP_DEPOT_QUEENS` | ajouter `('RESP_DEPOT_QUEENS', 'Brooklyn')` dans `GOUVERNANCE.ACCES_DEPOT`, sans toucher à la politique, puis `SELECT depot, COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER GROUP BY depot` | Queens 161, Brooklyn 117 (278) ; après suppression de la ligne : de nouveau 161 | Queens 161, Brooklyn 117 ; après `DELETE` : 161 (capture `docs/capture_ajout_depot.png`) | oui |
 
 **Faux rouge rencontré** : la ligne `SELECT * ... WHERE driver_id = 'D0003'` lancée seule, sans ses `USE ROLE`, a renvoyé toutes les valeurs en clair. La requête était partie avec le dernier rôle utilisé dans la feuille (`TRANSFORMER`), pas avec `ANALYSTE`. Relancée avec son bloc (`USE SECONDARY ROLES NONE; USE ROLE ANALYSTE; USE WAREHOUSE ...;`), elle donne bien les valeurs masquées. Règle retenue : chaque test se lance avec ses `USE`, et on vérifie le rôle affiché avant de lire le résultat.
 
@@ -150,8 +150,13 @@ Pour le chauffeur `D0003` (dépôt Queens), la valeur que chaque rôle doit lire
 
 | N° | Vérification | Attendu | Obtenu | Vert ? |
 |---|---|---|---|---|
-| 10 | Avec le rôle des outils, après avoir relancé les fichiers SQL : nombre de lignes de `DIM_DRIVER` | | | |
-| 11 | Avec `RH_PAIE` : l'e-mail de `D0003` est toujours une vraie adresse | | | |
-| 12 | Les politiques sont toujours attachées après la relance (requête de la section 7 du contrat) | | | |
+| 10 | Avec `TRANSFORMER`, après avoir relancé `marts/dim_driver.sql` puis `marts/mart_driver_monthly.sql` : nombre de lignes | 400 (le rôle des outils voit toutes les lignes) ; `MART_DRIVER_MONTHLY` : 914 | 400 et 914 | oui |
+| 11 | Avec `RH_PAIE` : l'e-mail de `D0003` est toujours une vraie adresse | `anthony.suarez3@mail.example` (et non `*****` recopié par le pipeline) | `anthony.suarez3@mail.example` | oui |
+| 11 bis | Avec `RH_PAIE` : `driver_name` de `D0003` dans `MART_DRIVER_MONTHLY` | `Anthony Suarez` (ni vide, ni `*****`) | `Anthony Suarez` | oui |
+| 12 | Les politiques sont toujours attachées après la relance (requête de la section 7 du contrat, avec `ACCOUNTADMIN`) | politique texte et politique date (par le tag `DONNEE_PERSONNELLE`) et politique d'accès par ligne, attachées à `DIM_DRIVER` | 8 lignes : `MASK_DATE` sur `BIRTH_DATE` ; `MASK_TEXTE` sur `DRIVER_ID`, `EMAIL`, `FIRST_NAME`, `LAST_NAME`, `PHONE`, `TLC_LICENSE_NUMBER` (toutes par le tag `DONNEE_PERSONNELLE`) ; `RAP_DEPOT` (accès par ligne, sur `depot`) | oui |
 
 Ajoutez vos propres tests : un cahier qui ne contient que des tests verts dès le premier essai n'a probablement pas cherché les cas limites.
+
+### Bilan du jour 2
+
+Cahier entièrement vert : 30 tests, dont 1 faux rouge expliqué (rôle non sélectionné, voir « Faux rouge rencontré »). Chaque responsable de dépôt ne voit que ses chauffeurs, l'analyste ne peut nommer personne, le service paie voit tout, `GOUVERNANCE` ne lit rien, `ACCOUNTADMIN` ne voit aucune ligne des marts RH et seulement des valeurs masquées dans `RAW`. Après une relance du pipeline, les volumes, les vraies valeurs et les politiques sont intacts. Captures : `docs/capture_ajout_depot.png`, `docs/capture_deux_roles.png`.

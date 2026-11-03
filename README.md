@@ -19,7 +19,7 @@ Le détail de la confrontation, règle par règle, est dans [`docs/VEILLE.md`](d
 ### Ce que nous avons mis en œuvre : le contrat tel qu'il est
 
 <!-- Cocher au fur et à mesure des jours 2 et 3 -->
-- [ ] Matrice des accès appliquée telle qu'écrite : masquage par tag, filtre par ligne via `ACCES_DEPOT`, actifs et partis traités de la même façon.
+- [x] Matrice des accès appliquée telle qu'écrite : masquage par tag (`03_masquage.sql`), filtre par ligne via `ACCES_DEPOT` (`04_acces_depot.sql`), actifs et partis traités de la même façon. Preuve : cahier de tests de `docs/ACCES.md`, entièrement vert.
 - [ ] R1 : `T_PURGE` supprime les chauffeurs 5 ans après `end_date`, ainsi que leurs services, puis `T_TABLES` reconstruit les marts.
 - [ ] R2 : Time Travel réglé à 1 jour sur les tables RH. Les tables restent permanentes.
 - [ ] R3 : `PURGE = TRUE` au chargement, et `data/` exclu du dépôt Git.
