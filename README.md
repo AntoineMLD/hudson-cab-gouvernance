@@ -43,7 +43,9 @@ Le détail de la confrontation, règle par règle, est dans [`docs/VEILLE.md`](d
 
 | Colonne | Décision (masquer, supprimer, laisser) | Pour quel rôle | Raison |
 |---|---|---|---|
-| | | | |
+| `driver_id` (4 tables) | taguer `identifiant_interne`, laisser visible | tous les rôles métier | Le contrat le veut visible de tous pour compter et joindre sans nommer ; il porte quand même le tag car il renvoie à une personne (pseudonyme). La politique de masquage prévoit une exception pour cette valeur. |
+| `driver_name` (`MART_DRIVER_MONTHLY`) | taguer `nom` | — | Colonne calculée à partir du prénom et du nom : c'est une donnée personnelle, masquée comme le nom. |
+| `depot`, `hire_date`, `end_date`, `is_active`, `tenure_years` | ne pas taguer `DONNEE_PERSONNELLE` | — | Ils ne désignent personne seuls, aucune des six valeurs du contrat ne leur correspond, et le contrat ne demande pas de les masquer. Ce sont pourtant des identifiants indirects : combinés à l'année de naissance, ils peuvent permettre de réidentifier un chauffeur (voir « Ce que nous proposons à la direction »). |
 
 ### Ordre d'exécution des scripts
 
@@ -58,7 +60,10 @@ Chaque script s'exécute en entier dans une feuille Snowsight, avec le rôle ind
 | 5 | `snowflake/rh/00_tables_rh.sql` | `TRANSFORMER` | 3 tables dans `MARTS` |
 | 6 | `snowflake/rh/staging/stg_rh__drivers.sql`, `stg_rh__driver_shifts.sql` | `TRANSFORMER` | 2 vues ; 25 933 services |
 | 7 | `snowflake/rh/marts/dim_depot.sql`, `dim_driver.sql`, `mart_driver_monthly.sql` | `TRANSFORMER` | 3, 400 et 914 lignes |
-| 8 | ______ | | |
+| 8 | `snowflake/gouvernance/01_gouvernance.sql` | `ACCOUNTADMIN` puis `GOUVERNANCE` (dans le script) | `SHOW TAGS IN SCHEMA NYC_TAXI.GOUVERNANCE;` : 3 tags ; relancé sans erreur |
+| 9 | `snowflake/gouvernance/modele_catalogue_dim_depot.sql` | `TRANSFORMER` | 4 colonnes décrites, 2 tags sur `DIM_DEPOT` |
+| 10 | `snowflake/rh/catalogue/catalogue_*.sql` (4 fichiers) | `TRANSFORMER` | aucune colonne sans description dans `DIM_DRIVER` et `RAW.DRIVERS` ; 4 tables taguées |
+| 11 | ______ | | |
 
 ### Le chargement, étape par étape
 
