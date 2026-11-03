@@ -20,8 +20,8 @@ Le détail de la confrontation, règle par règle, est dans [`docs/VEILLE.md`](d
 
 <!-- Cocher au fur et à mesure des jours 2 et 3 -->
 - [x] Matrice des accès appliquée telle qu'écrite : masquage par tag (`03_masquage.sql`), filtre par ligne via `ACCES_DEPOT` (`04_acces_depot.sql`), actifs et partis traités de la même façon. Preuve : cahier de tests de `docs/ACCES.md`, entièrement vert.
-- [ ] R1 : `T_PURGE` supprime les chauffeurs 5 ans après `end_date`, ainsi que leurs services, puis `T_TABLES` reconstruit les marts.
-- [ ] R2 : Time Travel réglé à 1 jour sur les tables RH. Les tables restent permanentes.
+- [x] R1 : `purge_rh.sql` supprime les services puis les chauffeurs partis depuis plus de 5 ans (46 au 03/11/2026), puis les marts sont reconstruits. Automatisé par `T_PURGE` (à venir).
+- [x] R2 : Time Travel réglé à 1 jour sur les 4 tables RH (`conservation_rh.sql`). Les tables restent permanentes (Fail-safe de 7 jours, voir l'écart).
 - [ ] R3 : `PURGE = TRUE` au chargement, et `data/` exclu du dépôt Git.
 - [ ] Règles de qualité : `licence_unique`, `service_rattache` (bloquante), plus ______, enregistrées dans `QUALITE_RESULTATS`.
 
@@ -48,6 +48,8 @@ Le détail de la confrontation, règle par règle, est dans [`docs/VEILLE.md`](d
 | `depot`, `hire_date`, `end_date`, `is_active`, `tenure_years` | ne pas taguer `DONNEE_PERSONNELLE` | — | Ils ne désignent personne seuls, aucune des six valeurs du contrat ne leur correspond, et le contrat ne demande pas de les masquer. Ce sont pourtant des identifiants indirects : combinés à l'année de naissance, ils peuvent permettre de réidentifier un chauffeur (voir « Ce que nous proposons à la direction »). |
 | `first_name`, `last_name`, `email`, `phone`, `birth_date`, `tlc_license_number`, `driver_name` | masquer, pas supprimer | `ANALYSTE`, responsables de dépôt, administrateurs | Une même table sert la paie (tout en clair) et l'analyste (rien d'identifiant) : seul le masquage dynamique permet les deux sans dupliquer les tables. Deux politiques attachées au tag `DONNEE_PERSONNELLE` (une pour le texte, une pour les dates, car une politique renvoie le type qu'elle reçoit) : toute colonne taguée, dans `RAW` comme dans `MARTS`, est protégée sans autre geste. Le test de rôle utilise `CURRENT_ROLE()` et non `IS_ROLE_IN_SESSION()`, pour que `ACCOUNTADMIN`, qui hérite de `TRANSFORMER`, ne voie pas les données en clair. Les responsables de dépôt sont reconnus par le préfixe `RESP_DEPOT_`, pour qu'un nouveau dépôt ne demande aucune modification de politique. |
 | Lignes de `DIM_DRIVER` et `MART_DRIVER_MONTHLY` | filtrer par dépôt avec une politique d'accès par ligne pilotée par `GOUVERNANCE.ACCES_DEPOT` | responsables de dépôt ; administrateurs et rôles absents de la matrice | Qui voit quel dépôt est écrit dans des lignes, pas dans la politique : ouvrir un dépôt ou un accès = une ligne `INSERT`, sans modifier la politique (test 20). `*` = tous les dépôts (`TRANSFORMER`, `RH_PAIE`, `ANALYSTE`). `TRANSFORMER` doit y figurer, sinon le pipeline ne verrait aucune ligne et reconstruirait les marts vides, sans erreur. Les lignes de référence sont insérées par `MERGE` : le script est rejouable sans effacer un accès ajouté plus tard. Le filtre ne porte que sur `MARTS` (guide) ; `RAW` n'est lisible que par `TRANSFORMER` et, par héritage, par les administrateurs, pour qui les colonnes personnelles restent masquées (test 9 bis). |
+| `RAW.DRIVER_SHIFTS` (purge R1) | purger les services des chauffeurs purgés, avant les chauffeurs | `T_PURGE` (rôle des outils) | R1 s'applique partout où la donnée du chauffeur a été copiée. Avec le fichier actuel, 46 chauffeurs sont purgés et 0 service (services de janvier à mars 2025, chauffeurs partis avant novembre 2021) ; avec un fichier historique complet, la purge des services évite de garder l'activité de chauffeurs supprimés et des services orphelins, qui bloqueraient la règle `service_rattache`. Les services d'abord : une fois le chauffeur supprimé, on ne saurait plus lesquels lui appartenaient. |
+| Durée de rétention | `DATA_RETENTION_TIME_IN_DAYS = 1` posé explicitement sur les 4 tables RH | rôle des outils (propriétaire) | Règle R2. Posée table par table pour ne pas dépendre du réglage du compte ou de la base. `DIM_DEPOT` n'est pas concernée (aucune donnée personnelle). |
 
 ### Ordre d'exécution des scripts
 
@@ -68,7 +70,10 @@ Chaque script s'exécute en entier dans une feuille Snowsight, avec le rôle ind
 | 11 | `snowflake/gouvernance/02_roles_metier.sql` | `ACCOUNTADMIN` | `SHOW GRANTS TO ROLE RESP_DEPOT_QUEENS;` : USAGE + 3 SELECT ; relancé sans erreur |
 | 12 | `snowflake/gouvernance/03_masquage.sql` (partie A) | `GOUVERNANCE` | `SHOW MASKING POLICIES` : 2 politiques ; `POLICY_REFERENCES` sur `DIM_DRIVER` : attachées par le tag ; relancé sans erreur |
 | 13 | `snowflake/gouvernance/04_acces_depot.sql` (partie A) | `GOUVERNANCE` | `ACCES_DEPOT` : 5 lignes ; `RESP_DEPOT_QUEENS` voit 161 chauffeurs ; relancé sans erreur |
-| 14 | ______ | | |
+| 14 | `snowflake/rh/purge_rh.sql` | `TRANSFORMER` | 46 chauffeurs purgés (au 03/11/2026), 0 service ; `RAW.DRIVERS` : 354 |
+| 15 | `snowflake/rh/marts/dim_driver.sql`, puis `mart_driver_monthly.sql` | `TRANSFORMER` | `DIM_DRIVER` : 354 ; `MART_DRIVER_MONTHLY` : 914 |
+| 16 | `snowflake/rh/conservation_rh.sql` | `TRANSFORMER` | `retention_time` = 1 sur les 4 tables RH |
+| 17 | ______ | | |
 
 ### Le chargement, étape par étape
 
