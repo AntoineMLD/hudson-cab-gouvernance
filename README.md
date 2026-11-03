@@ -22,7 +22,7 @@ Le détail de la confrontation, règle par règle, est dans [`docs/VEILLE.md`](d
 - [x] Matrice des accès appliquée telle qu'écrite : masquage par tag (`03_masquage.sql`), filtre par ligne via `ACCES_DEPOT` (`04_acces_depot.sql`), actifs et partis traités de la même façon. Preuve : cahier de tests de `docs/ACCES.md`, entièrement vert.
 - [x] R1 : `purge_rh.sql` supprime les services puis les chauffeurs partis depuis plus de 5 ans (46 au 03/11/2026), puis les marts sont reconstruits. Automatisé par `T_PURGE` (à venir).
 - [x] R2 : Time Travel réglé à 1 jour sur les 4 tables RH (`conservation_rh.sql`). Les tables restent permanentes (Fail-safe de 7 jours, voir l'écart).
-- [ ] R3 : `PURGE = TRUE` au chargement, et `data/` exclu du dépôt Git.
+- [x] R3 : `PURGE = TRUE` au chargement, et `data/` exclu du dépôt Git. Preuve : stage vide après chargement (`docs/capture_stage_vide.png`), `git log --all -- data/` vide.
 - [x] Règles de qualité : `licence_unique`, `service_rattache` (bloquante), `depot_connu`, `telephone_renseigne`, mesurées chaque jour par `T_QUALITE` et enregistrées dans `QUALITE_RESULTATS`. Graphe quotidien `T_PURGE` → `T_QUALITE` → `T_TABLES` (6 h, heure de Paris), exécuté par le rôle des outils.
 
 ### Ce que nous proposons à la direction (non mis en œuvre)
@@ -110,8 +110,13 @@ Résultat : 400 chauffeurs, 25 951 services, stage vide (captures `docs/capture_
 
 ### Limites connues
 
-<!-- À compléter au fil des jours, sans détour -->
-
 - `ALTER TABLE ... DROP ALL ROW ACCESS POLICIES` dans `04_acces_depot.sql` retirerait aussi une autre politique d'accès par ligne posée plus tard sur ces tables.
 - Le filtre par dépôt ne distingue pas chauffeurs en poste et chauffeurs partis : un responsable voit pendant 5 ans le nom et le téléphone de ses anciens chauffeurs (écart principal, voir plus haut).
 - `GOUVERNANCE` peut modifier `ACCES_DEPOT` et les politiques : il ne lit pas les données, mais il peut en ouvrir l'accès à un autre rôle. Ses modifications sont tracées dans `ACCESS_HISTORY` et `QUERY_HISTORY` (requête d'audit du jour 3).
+- Une donnée purgée survit 8 jours dans Snowflake : 1 jour de Time Travel (R2), puis 7 jours de Fail-safe, que l'on ne peut pas raccourcir sur une table permanente (voir `docs/REGISTRE.md` et `docs/VEILLE.md`).
+- Les règles de qualité détectent sans corriger : une `ALERTE` se corrige dans le système RH, puis par un nouveau chargement. `licence_unique` (4) et `depot_connu` (9) sont en alerte au 03/11/2026.
+- `driver_id`, combiné au dépôt, à l'année de naissance et à l'ancienneté, peut permettre à l'analyste de réidentifier certains chauffeurs.
+- Le rôle des outils `TRANSFORMER` voit tout en clair et peut retirer un tag de masquage : sa compromission exposerait toutes les données. Le risque est limité par la traçabilité (`ACCESS_HISTORY`, `QUERY_HISTORY`) et par `06_audit.sql`, pas supprimé.
+- L'audit de `ACCESS_HISTORY` a jusqu'à 3 h de latence : les lectures de la dernière heure peuvent manquer.
+- Le droit du travail applicable aux durées de conservation (français ou new-yorkais) reste à trancher par le DPO et le conseil juridique (`docs/VEILLE.md`).
+- Le graphe de tâches reste activé tant que `T_PURGE` n'est pas suspendu (`ALTER TASK NYC_TAXI.MARTS.T_PURGE SUSPEND;`) : il consomme des crédits chaque jour.

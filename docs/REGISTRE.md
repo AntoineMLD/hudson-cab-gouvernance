@@ -87,7 +87,7 @@ Version réduite du registre des activités de traitement (RGPD, art. 30), limit
 | Personnes concernées | Chauffeurs de taxi de Hudson Cab Partners, en poste ou partis depuis moins de 5 ans, rattachés aux dépôts du Bronx, de Brooklyn et de Queens (354 au 03/11/2026, après la purge de 46 chauffeurs) |
 | Responsable du traitement | Hudson Cab Europe (Paris), qui décide des finalités et des moyens depuis le transfert de la gestion des données du personnel (`docs/VEILLE.md`, section 1) |
 | Service responsable des données | Service RH (fichier source) ; équipe data de Hudson Cab Europe (entrepôt, règles techniques) |
-| Sous-traitant | Snowflake (hébergement et calcul), région : ______ |
+| Sous-traitant | Snowflake (hébergement et calcul), région : Pays-Bas (Union européenne) |
 | Autorité de contrôle | CNIL |
 
 ### Les données
