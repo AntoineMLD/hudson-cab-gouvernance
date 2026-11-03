@@ -63,7 +63,8 @@ Chaque script s'exécute en entier dans une feuille Snowsight, avec le rôle ind
 | 8 | `snowflake/gouvernance/01_gouvernance.sql` | `ACCOUNTADMIN` puis `GOUVERNANCE` (dans le script) | `SHOW TAGS IN SCHEMA NYC_TAXI.GOUVERNANCE;` : 3 tags ; relancé sans erreur |
 | 9 | `snowflake/gouvernance/modele_catalogue_dim_depot.sql` | `TRANSFORMER` | 4 colonnes décrites, 2 tags sur `DIM_DEPOT` |
 | 10 | `snowflake/rh/catalogue/catalogue_*.sql` (4 fichiers) | `TRANSFORMER` | aucune colonne sans description dans `DIM_DRIVER` et `RAW.DRIVERS` ; 4 tables taguées |
-| 11 | ______ | | |
+| 11 | `snowflake/gouvernance/02_roles_metier.sql` | `ACCOUNTADMIN` | `SHOW GRANTS TO ROLE RESP_DEPOT_QUEENS;` : USAGE + 3 SELECT ; relancé sans erreur |
+| 12 | ______ | | |
 
 ### Le chargement, étape par étape
 
