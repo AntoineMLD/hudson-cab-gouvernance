@@ -46,6 +46,7 @@ Le détail de la confrontation, règle par règle, est dans [`docs/VEILLE.md`](d
 | `driver_id` (4 tables) | taguer `identifiant_interne`, laisser visible | tous les rôles métier | Le contrat le veut visible de tous pour compter et joindre sans nommer ; il porte quand même le tag car il renvoie à une personne (pseudonyme). La politique de masquage prévoit une exception pour cette valeur. |
 | `driver_name` (`MART_DRIVER_MONTHLY`) | taguer `nom` | — | Colonne calculée à partir du prénom et du nom : c'est une donnée personnelle, masquée comme le nom. |
 | `depot`, `hire_date`, `end_date`, `is_active`, `tenure_years` | ne pas taguer `DONNEE_PERSONNELLE` | — | Ils ne désignent personne seuls, aucune des six valeurs du contrat ne leur correspond, et le contrat ne demande pas de les masquer. Ce sont pourtant des identifiants indirects : combinés à l'année de naissance, ils peuvent permettre de réidentifier un chauffeur (voir « Ce que nous proposons à la direction »). |
+| `first_name`, `last_name`, `email`, `phone`, `birth_date`, `tlc_license_number`, `driver_name` | masquer, pas supprimer | `ANALYSTE`, responsables de dépôt, administrateurs | Une même table sert la paie (tout en clair) et l'analyste (rien d'identifiant) : seul le masquage dynamique permet les deux sans dupliquer les tables. Deux politiques attachées au tag `DONNEE_PERSONNELLE` (une pour le texte, une pour les dates, car une politique renvoie le type qu'elle reçoit) : toute colonne taguée, dans `RAW` comme dans `MARTS`, est protégée sans autre geste. Le test de rôle utilise `CURRENT_ROLE()` et non `IS_ROLE_IN_SESSION()`, pour que `ACCOUNTADMIN`, qui hérite de `TRANSFORMER`, ne voie pas les données en clair. Les responsables de dépôt sont reconnus par le préfixe `RESP_DEPOT_`, pour qu'un nouveau dépôt ne demande aucune modification de politique. |
 
 ### Ordre d'exécution des scripts
 
@@ -64,7 +65,8 @@ Chaque script s'exécute en entier dans une feuille Snowsight, avec le rôle ind
 | 9 | `snowflake/gouvernance/modele_catalogue_dim_depot.sql` | `TRANSFORMER` | 4 colonnes décrites, 2 tags sur `DIM_DEPOT` |
 | 10 | `snowflake/rh/catalogue/catalogue_*.sql` (4 fichiers) | `TRANSFORMER` | aucune colonne sans description dans `DIM_DRIVER` et `RAW.DRIVERS` ; 4 tables taguées |
 | 11 | `snowflake/gouvernance/02_roles_metier.sql` | `ACCOUNTADMIN` | `SHOW GRANTS TO ROLE RESP_DEPOT_QUEENS;` : USAGE + 3 SELECT ; relancé sans erreur |
-| 12 | ______ | | |
+| 12 | `snowflake/gouvernance/03_masquage.sql` (partie A) | `GOUVERNANCE` | `SHOW MASKING POLICIES` : 2 politiques ; `POLICY_REFERENCES` sur `DIM_DRIVER` : attachées par le tag ; relancé sans erreur |
+| 13 | ______ | | |
 
 ### Le chargement, étape par étape
 
