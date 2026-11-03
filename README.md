@@ -23,7 +23,7 @@ Le détail de la confrontation, règle par règle, est dans [`docs/VEILLE.md`](d
 - [x] R1 : `purge_rh.sql` supprime les services puis les chauffeurs partis depuis plus de 5 ans (46 au 03/11/2026), puis les marts sont reconstruits. Automatisé par `T_PURGE` (à venir).
 - [x] R2 : Time Travel réglé à 1 jour sur les 4 tables RH (`conservation_rh.sql`). Les tables restent permanentes (Fail-safe de 7 jours, voir l'écart).
 - [ ] R3 : `PURGE = TRUE` au chargement, et `data/` exclu du dépôt Git.
-- [ ] Règles de qualité : `licence_unique`, `service_rattache` (bloquante), plus ______, enregistrées dans `QUALITE_RESULTATS`.
+- [x] Règles de qualité : `licence_unique`, `service_rattache` (bloquante), `depot_connu`, `telephone_renseigne`, mesurées chaque jour par `T_QUALITE` et enregistrées dans `QUALITE_RESULTATS`. Graphe quotidien `T_PURGE` → `T_QUALITE` → `T_TABLES` (6 h, heure de Paris), exécuté par le rôle des outils.
 
 ### Ce que nous proposons à la direction (non mis en œuvre)
 
@@ -50,6 +50,7 @@ Le détail de la confrontation, règle par règle, est dans [`docs/VEILLE.md`](d
 | Lignes de `DIM_DRIVER` et `MART_DRIVER_MONTHLY` | filtrer par dépôt avec une politique d'accès par ligne pilotée par `GOUVERNANCE.ACCES_DEPOT` | responsables de dépôt ; administrateurs et rôles absents de la matrice | Qui voit quel dépôt est écrit dans des lignes, pas dans la politique : ouvrir un dépôt ou un accès = une ligne `INSERT`, sans modifier la politique (test 20). `*` = tous les dépôts (`TRANSFORMER`, `RH_PAIE`, `ANALYSTE`). `TRANSFORMER` doit y figurer, sinon le pipeline ne verrait aucune ligne et reconstruirait les marts vides, sans erreur. Les lignes de référence sont insérées par `MERGE` : le script est rejouable sans effacer un accès ajouté plus tard. Le filtre ne porte que sur `MARTS` (guide) ; `RAW` n'est lisible que par `TRANSFORMER` et, par héritage, par les administrateurs, pour qui les colonnes personnelles restent masquées (test 9 bis). |
 | `RAW.DRIVER_SHIFTS` (purge R1) | purger les services des chauffeurs purgés, avant les chauffeurs | `T_PURGE` (rôle des outils) | R1 s'applique partout où la donnée du chauffeur a été copiée. Avec le fichier actuel, 46 chauffeurs sont purgés et 0 service (services de janvier à mars 2025, chauffeurs partis avant novembre 2021) ; avec un fichier historique complet, la purge des services évite de garder l'activité de chauffeurs supprimés et des services orphelins, qui bloqueraient la règle `service_rattache`. Les services d'abord : une fois le chauffeur supprimé, on ne saurait plus lesquels lui appartenaient. |
 | Durée de rétention | `DATA_RETENTION_TIME_IN_DAYS = 1` posé explicitement sur les 4 tables RH | rôle des outils (propriétaire) | Règle R2. Posée table par table pour ne pas dépendre du réglage du compte ou de la base. `DIM_DEPOT` n'est pas concernée (aucune donnée personnelle). |
+| Tâches planifiées | 3 tâches en graphe, propriété du rôle des outils, corps en `EXECUTE IMMEDIATE $$ … $$` | `TRANSFORMER` | Une tâche s'exécute avec les droits de son propriétaire : `TRANSFORMER` voit les vraies valeurs (sinon les mesures de qualité seraient fausses et les marts recevraient des masques) et toutes les lignes. `T_QUALITE` enregistre toutes les mesures avant de lever l'erreur : on garde la trace du dépassement qui a bloqué la chaîne. `T_TABLES` reprend les `INSERT OVERWRITE` des fichiers de `rh/marts/` : les tables ne sont jamais recréées, et les tags, descriptions et politiques survivent. |
 
 ### Les règles de qualité
 
@@ -90,7 +91,8 @@ Chaque script s'exécute en entier dans une feuille Snowsight, avec le rôle ind
 | 16 | `snowflake/rh/conservation_rh.sql` | `TRANSFORMER` | `retention_time` = 1 sur les 4 tables RH |
 | 17 | `snowflake/rh/controles/*.sql` (4 règles) | `TRANSFORMER` | licence_unique 4, service_rattache 25, depot_connu 9, telephone_renseigne 12 / 14,50 |
 | 18 | `snowflake/rh/catalogue/v_catalogue.sql` | `TRANSFORMER` | 24 lignes ; `ANALYSTE` lit la vue et y trouve les 3 tables |
-| 19 | ______ | | |
+| 19 | `snowflake/rh/taches_rh.sql` (partie A) | `TRANSFORMER` | 3 tâches `started` ; après `EXECUTE TASK` : `T_PURGE`, `T_QUALITE`, `T_TABLES` en `SUCCEEDED`, 4 lignes dans `QUALITE_RESULTATS` |
+| 20 | ______ | | |
 
 ### Le chargement, étape par étape
 
