@@ -62,7 +62,16 @@ Chaque script s'exécute en entier dans une feuille Snowsight, avec le rôle ind
 
 ### Le chargement, étape par étape
 
-<!-- Jour 1, étape 8 : à quoi servent le format de fichier, le stage, COPY INTO et PURGE = TRUE -->
+Les deux fichiers RH sont chargés dans `RAW` avec le rôle des outils `TRANSFORMER`, en trois temps : préparer (`chargement_rh_1_preparer.sql`), déposer les fichiers sur le stage depuis Snowsight, copier (`chargement_rh_2_copier.sql`). Quatre notions à comprendre :
+
+1. **Le format de fichier** (`NYC_TAXI.RAW.CSV_RH`) dit à Snowflake comment lire un CSV : virgule comme séparateur (`TYPE = CSV`), première ligne ignorée car elle contient les noms de colonnes (`SKIP_HEADER = 1`), valeurs éventuellement entourées de guillemets (`FIELD_OPTIONALLY_ENCLOSED_BY = '"'`). `TRIM_SPACE = FALSE` garde les espaces, parce que `RAW` est une copie fidèle du fichier : le nettoyage se fait plus loin, dans les vues de `STAGING`, et les erreurs de saisie restent mesurables par les règles de qualité.
+2. **Le stage** (`NYC_TAXI.RAW.RH_STAGE`) est un espace de dépôt interne à Snowflake, chiffré côté serveur, où l'on pose les fichiers avant de les copier dans une table. Les deux CSV y sont déposés depuis Snowsight (bouton + Files), puis vérifiés avec `LIST`.
+3. **`COPY INTO`** copie chaque fichier du stage dans sa table (`RAW.DRIVERS`, `RAW.DRIVER_SHIFTS`). Il ajoute deux colonnes techniques : `_source_file`, qui vient de `METADATA$FILENAME` (le nom du fichier chargé), et `_loaded_at`, qui vient de `METADATA$START_SCAN_TIME` (l'heure du chargement). Elles permettent de savoir d'où vient chaque ligne. `ON_ERROR = ABORT_STATEMENT` arrête tout à la première ligne illisible, plutôt que de l'ignorer en silence (`CONTINUE`) et de charger une copie incomplète.
+4. **`PURGE = TRUE`** retire chaque fichier du stage une fois copié : c'est la règle R3 du contrat.
+
+**Rejouer le chargement** : relancé, `chargement_rh_2_copier.sql` échoue avec « Remote file '@rh_stage/drivers.csv' was not found ». Les fichiers sont nommés explicitement (`FILES = (...)`) et ont été purgés : le commentaire du script fourni (« ne charge rien de plus ») est donc inexact, et les comptages restent à 400 et 25 951. Si l'on redépose le même fichier, `COPY INTO` ne le recharge pas, parce qu'il garde pendant 64 jours l'historique des fichiers déjà chargés dans la table (nom et empreinte du fichier). Aucun doublon n'est donc possible, sauf avec `FORCE = TRUE` ou un fichier modifié.
+
+Résultat : 400 chauffeurs, 25 951 services, stage vide (captures `docs/capture_stage_vide.png` et `docs/capture_relance_copy.png`).
 
 ### Limites connues
 
