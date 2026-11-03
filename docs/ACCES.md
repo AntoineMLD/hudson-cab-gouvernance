@@ -90,7 +90,7 @@ Relevées avec `TRANSFORMER`, avant toute politique (`SELECT depot, COUNT(*) ...
 | `MARTS.DIM_DRIVER` | 122 | 117 | 161 | 400 |
 | `MARTS.MART_DRIVER_MONTHLY` | 290 | 259 | 365 | 914 |
 
-Chauffeur témoin `D0003` : Anthony Suarez, dépôt **Queens**, e-mail `[adresse complète]`, téléphone `+1 (917) 555-2473`, naissance `1981-12-07`, licence TLC `5213863`.
+Chauffeur témoin `D0003` : Anthony Suarez, dépôt **Queens**, e-mail `anthony.suarez3@mail.example`, téléphone `+1 (917) 555-2473`, naissance `1981-12-07`, licence TLC `5213863`.
 
 ### Lignes visibles
 
@@ -105,7 +105,7 @@ Chauffeur témoin `D0003` : Anthony Suarez, dépôt **Queens**, e-mail `[adresse
 | 7 | `ACCOUNTADMIN` | la même | 0 : il a le droit de lire (hérité de `TRANSFORMER` par `SYSADMIN`), mais il est absent de `ACCES_DEPOT`, donc le filtre ne lui laisse aucune ligne | | |
 | 8 | `RH_PAIE` | `SELECT COUNT(*) FROM NYC_TAXI.RAW.DRIVER_SHIFTS` | refusé (aucun rôle métier ne lit `RAW`) | | |
 | 9 | `ANALYSTE` | `SELECT COUNT(*) FROM NYC_TAXI.RAW.DRIVERS` | refusé | | |
-| 9 bis | `ACCOUNTADMIN` | `SELECT first_name, email FROM NYC_TAXI.RAW.DRIVERS LIMIT 3` | 3 lignes (pas de filtre sur `RAW`), `first_name` = `*****`, `email` = `*****` (masquage par tag : seul `TRANSFORMER` voit en clair) | | |
+| 9 bis | `ACCOUNTADMIN` | `SELECT first_name, email FROM NYC_TAXI.RAW.DRIVERS LIMIT 3` | 3 lignes (pas de filtre sur `RAW`), `first_name` = `*****`, `email` = `*****` (masquage par tag : seul `TRANSFORMER` voit en clair) | 3 lignes, `*****` / `*****` sur les 3 | oui |
 | 13 | `RESP_DEPOT_BRONX` | `SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER` | 122 | | |
 | 14 | `RESP_DEPOT_QUEENS` | `SELECT COUNT(*) FROM NYC_TAXI.MARTS.MART_DRIVER_MONTHLY` | 365 | | |
 | 15 | `RESP_DEPOT_QUEENS` | `SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER WHERE depot = 'Brooklyn'` | 0 (Brooklyn n'a pas de responsable dans la matrice) | | |
@@ -119,23 +119,28 @@ Pour le chauffeur `D0003` (dépôt Queens), la valeur que chaque rôle doit lire
 | Colonne | `RH_PAIE` | `RESP_DEPOT_QUEENS` | `RESP_DEPOT_BRONX` | `ANALYSTE` |
 |---|---|---|---|---|
 | nom et prénom | Anthony / Suarez | Anthony / Suarez | ligne invisible | `*****` / `*****` |
-| e-mail | `[adresse complète]` | `*****` | ligne invisible | `*****` |
+| e-mail | `anthony.suarez3@mail.example` | `*****` | ligne invisible | `*****` |
 | téléphone | `+1 (917) 555-2473` | `+1 (917) 555-2473` | ligne invisible | `*****` |
 | date de naissance | `1981-12-07` | `NULL` | ligne invisible | `1981-01-01` (année seulement) |
 | numéro de licence | `5213863` | `*****` | ligne invisible | `*****` |
 | `driver_name` dans `MART_DRIVER_MONTHLY` | Anthony Suarez | Anthony Suarez | ligne invisible | `*****` |
 | `driver_id` | `D0003` | `D0003` | ligne invisible | `D0003` |
 
-| | Résultat |
-|---|---|
-| Obtenu | |
-| Vert ? | |
+**Obtenu** (`SELECT * FROM NYC_TAXI.MARTS.DIM_DRIVER WHERE driver_id = 'D0003'`, rôle par rôle) :
+
+| Rôle | Obtenu | Vert ? |
+|---|---|---|
+| `RH_PAIE` | `D0003`, Anthony, Suarez, `anthony.suarez3@mail.example`, `+1 (917) 555-2473`, `1981-12-07`, `5213863`, Queens : tout en clair | oui |
+| `RESP_DEPOT_QUEENS` | `D0003`, Anthony, Suarez, `*****`, `+1 (917) 555-2473`, `NULL`, `*****`, Queens : nom, prénom et téléphone en clair, le reste masqué | oui |
+| `RESP_DEPOT_BRONX` | à tester après l'étape 6 (avant le filtre par dépôt, la ligne est encore visible, masquée) | |
+| `ANALYSTE` | à compléter (`SELECT *` sur `D0003` et `driver_name` du mart, lancés un par un) | |
 
 ### Cas limites
 
 | N° | Rôle | Requête | Attendu | Obtenu | Vert ? |
 |---|---|---|---|---|---|
-| 18 | `ANALYSTE` | `SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER WHERE email LIKE '%@%'` | 0 : le masque s'applique avant le filtre, l'analyste ne peut pas retrouver un chauffeur par son e-mail | | |
+| 18 | `ANALYSTE` | `SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER WHERE email LIKE '%@%'` | 0 : le masque s'applique avant le filtre, l'analyste ne peut pas retrouver un chauffeur par son e-mail | 0 | oui |
+| 21 | `TRANSFORMER` | `SELECT first_name, email, birth_date FROM NYC_TAXI.RAW.DRIVERS WHERE driver_id = 'D0003'` | tout en clair (le pipeline lit les vraies valeurs) | Anthony, `anthony.suarez3@mail.example`, `1981-12-07` | oui |
 | 19 | `ANALYSTE` | `SELECT driver_id FROM NYC_TAXI.MARTS.DIM_DRIVER WHERE driver_id = 'D0003'` | `D0003` (identifiant interne visible, contrat section 4) | | |
 | 20 | `GOUVERNANCE` puis `RESP_DEPOT_QUEENS` | ajouter `('RESP_DEPOT_QUEENS', 'Brooklyn')` dans `GOUVERNANCE.ACCES_DEPOT`, sans toucher à la politique, puis `SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER` | 278 (161 + 117) ; après suppression de la ligne : de nouveau 161 | | |
 
