@@ -97,20 +97,20 @@ Chauffeur témoin `D0003` : Anthony Suarez, dépôt **Queens**, e-mail `anthony.
 | N° | Rôle | Requête | Attendu | Obtenu | Vert ? |
 |---|---|---|---|---|---|
 | 1 | `RH_PAIE` | `SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER` | 400 (tous les dépôts) | 400 | oui |
-| 2 | `RESP_DEPOT_QUEENS` | la même | 161 (Queens seulement) | | |
-| 3 | `RESP_DEPOT_QUEENS` | `SELECT DISTINCT depot FROM NYC_TAXI.MARTS.DIM_DRIVER` | 1 ligne : `Queens` | | |
+| 2 | `RESP_DEPOT_QUEENS` | la même | 161 (Queens seulement) | 161 | oui |
+| 3 | `RESP_DEPOT_QUEENS` | `SELECT DISTINCT depot FROM NYC_TAXI.MARTS.DIM_DRIVER` | 1 ligne : `Queens` | 1 ligne : `Queens` | oui |
 | 4 | `RESP_DEPOT_BRONX` | `SELECT COUNT(*) FROM NYC_TAXI.MARTS.MART_DRIVER_MONTHLY` | 290 (Bronx seulement) | 290 | oui |
 | 5 | `ANALYSTE` | `SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER` | 400 (tous les dépôts) | 400 | oui |
 | 6 | `GOUVERNANCE` | la même | refusé : « does not exist or not authorized » (aucun `SELECT` sur les tables) | « Object 'NYC_TAXI.MARTS.DIM_DRIVER' does not exist or not authorized. Your primary role GOUVERNANCE must have at least one privilege granted on TABLE » | oui |
 | 7 | `ACCOUNTADMIN` | la même | 0 : il a le droit de lire (hérité de `TRANSFORMER` par `SYSADMIN`), mais il est absent de `ACCES_DEPOT`, donc le filtre ne lui laisse aucune ligne | 0 | oui |
-| 8 | `RH_PAIE` | `SELECT COUNT(*) FROM NYC_TAXI.RAW.DRIVER_SHIFTS` | refusé (aucun rôle métier ne lit `RAW`) | | |
-| 9 | `ANALYSTE` | `SELECT COUNT(*) FROM NYC_TAXI.RAW.DRIVERS` | refusé | | |
+| 8 | `RH_PAIE` | `SELECT COUNT(*) FROM NYC_TAXI.RAW.DRIVER_SHIFTS` | refusé (aucun rôle métier ne lit `RAW`) | « Schema 'NYC_TAXI.RAW' does not exist or not authorized. Your primary role RH_PAIE must have USAGE or any other privilege granted on SCHEMA NYC_TAXI.RAW » | oui |
+| 9 | `ANALYSTE` | `SELECT COUNT(*) FROM NYC_TAXI.RAW.DRIVERS` | refusé | « Schema 'NYC_TAXI.RAW' does not exist or not authorized. Your primary role ANALYSTE must have USAGE … on SCHEMA NYC_TAXI.RAW » | oui |
 | 9 bis | `ACCOUNTADMIN` | `SELECT first_name, email FROM NYC_TAXI.RAW.DRIVERS LIMIT 3` | 3 lignes (pas de filtre sur `RAW`), `first_name` = `*****`, `email` = `*****` (masquage par tag : seul `TRANSFORMER` voit en clair) | 3 lignes, `*****` / `*****` sur les 3 | oui |
 | 13 | `RESP_DEPOT_BRONX` | `SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER` | 122 | 122 | oui |
-| 14 | `RESP_DEPOT_QUEENS` | `SELECT COUNT(*) FROM NYC_TAXI.MARTS.MART_DRIVER_MONTHLY` | 365 | | |
-| 15 | `RESP_DEPOT_QUEENS` | `SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER WHERE depot = 'Brooklyn'` | 0 (Brooklyn n'a pas de responsable dans la matrice) | | |
+| 14 | `RESP_DEPOT_QUEENS` | `SELECT COUNT(*) FROM NYC_TAXI.MARTS.MART_DRIVER_MONTHLY` | 365 | 365 | oui |
+| 15 | `RESP_DEPOT_QUEENS` | `SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER WHERE depot = 'Brooklyn'` | 0 (Brooklyn n'a pas de responsable dans la matrice) | 0 | oui |
 | 16 | `ACCOUNTADMIN` | `SELECT COUNT(*) FROM NYC_TAXI.MARTS.MART_DRIVER_MONTHLY` | 0 | 0 | oui |
-| 17 | `ANALYSTE` | `SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DEPOT` | 3 (référentiel sans filtre ni masque) | | |
+| 17 | `ANALYSTE` | `SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DEPOT` | 3 (référentiel sans filtre ni masque) | 3 | oui |
 
 ### Valeurs visibles
 
