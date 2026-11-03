@@ -58,43 +58,86 @@ Avant les politiques, un droit `SELECT` ne protège rien : avec `RESP_DEPOT_QUEE
 
 ### Ce que cette carte permet à un rôle de défaire
 
-Pour chaque rôle qui peut poser ou retirer un tag, ou détacher une politique : que pourrait-il démasquer ? Est-ce acceptable, et qui le surveille ?
+- `TRANSFORMER` a `APPLY` sur les trois tags et possède les tables : il peut retirer le tag `DONNEE_PERSONNELLE` d'une colonne (`UNSET TAG`), ce qui la démasque pour tous. Il voit déjà tout en clair, mais il pourrait exposer une colonne aux autres rôles.
+- `GOUVERNANCE` possède les politiques et `ACCES_DEPOT` : il peut ajouter une ligne `('ANALYSTE', '*')` à un responsable, ou changer le corps d'une politique. Il ne lit pas les données lui-même, mais il décide qui les lit.
+- `ACCOUNTADMIN` peut tout réattribuer (rôles, propriétés, droits).
+- Qui surveille : ces actions sont des requêtes, visibles dans `SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY` et `ACCESS_HISTORY`. La requête d'audit du jour 3 et la relecture des scripts versionnés dans Git en sont le contrôle. Le test 12 (politiques toujours attachées) se relance après chaque exécution des tâches.
 
 ---
 
 ## Partie 2 — Cahier de tests
 
-Décidez d'abord à quoi ressemble une valeur masquée pour chaque type de colonne (texte, date) et notez-le ici : ______. Puis remplissez en deux temps : la colonne « attendu » **avant** d'écrire les politiques, à partir de la matrice du contrat ; la colonne « obtenu » après, en exécutant la requête avec le rôle indiqué (`USE ROLE ...`).
+**Format d'une valeur masquée** (décidé avant d'écrire les politiques) :
+
+| Type de colonne | Colonnes | Valeur masquée | Pourquoi |
+|---|---|---|---|
+| Texte | `first_name`, `last_name`, `email`, `phone`, `tlc_license_number`, `driver_name` | `'*****'` | Un masque visible distingue « masqué » de « vide dans le fichier » (un `phone` vide reste `NULL`). Pas de masque partiel de l'e-mail (domaine visible) : le contrat interdit à l'analyste toute donnée qui identifie directement un chauffeur. |
+| Date | `birth_date` | `NULL` pour les rôles qui ne la voient pas | Une politique de masquage renvoie le type qu'elle reçoit : une date ne peut pas valoir `'*****'`. |
+| Date, cas de l'analyste | `birth_date` | le 1er janvier de l'année de naissance (ex. `1985-06-14` → `1985-01-01`) | « L'année de naissance seulement » (contrat, section 4), en gardant le type date. Le jour et le mois disparaissent. |
+| Identifiant interne | `driver_id` | jamais masqué | Visible de tous les rôles métier (contrat, section 4), malgré son tag `identifiant_interne`. |
+| Ligne filtrée | toutes | la ligne n'apparaît pas | Le filtre par dépôt retire la ligne entière : on ne voit pas une ligne masquée, on ne la voit pas du tout. |
+
+Puis remplissez en deux temps : la colonne « attendu » **avant** d'écrire les politiques, à partir de la matrice du contrat ; la colonne « obtenu » après, en exécutant la requête avec le rôle indiqué (`USE ROLE ...`).
 
 Un test est vert quand « obtenu » est identique à « attendu ». Un accès refusé (`Object does not exist or not authorized`) est un résultat comme un autre : écrivez-le.
+
+### Valeurs de référence
+
+Relevées avec `TRANSFORMER`, avant toute politique (`SELECT depot, COUNT(*) ... GROUP BY depot`) :
+
+| Table | Bronx | Brooklyn | Queens | Total |
+|---|---|---|---|---|
+| `MARTS.DIM_DRIVER` | 122 | 117 | 161 | 400 |
+| `MARTS.MART_DRIVER_MONTHLY` | 290 | 259 | 365 | 914 |
+
+Chauffeur témoin `D0003` : Anthony Suarez, dépôt **Queens**, e-mail `[adresse complète]`, téléphone `+1 (917) 555-2473`, naissance `1981-12-07`, licence TLC `5213863`.
 
 ### Lignes visibles
 
 | N° | Rôle | Requête | Attendu | Obtenu | Vert ? |
 |---|---|---|---|---|---|
-| 1 | `RH_PAIE` | `SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER` | | | |
-| 2 | `RESP_DEPOT_QUEENS` | la même | | | |
-| 3 | `RESP_DEPOT_QUEENS` | `SELECT DISTINCT depot FROM NYC_TAXI.MARTS.DIM_DRIVER` | | | |
-| 4 | `RESP_DEPOT_BRONX` | `SELECT COUNT(*) FROM NYC_TAXI.MARTS.MART_DRIVER_MONTHLY` | | | |
-| 5 | `ANALYSTE` | `SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER` | | | |
-| 6 | `GOUVERNANCE` | la même | | | |
-| 7 | `ACCOUNTADMIN` | la même | | | |
-| 8 | `RH_PAIE` | `SELECT COUNT(*) FROM NYC_TAXI.RAW.DRIVER_SHIFTS` | | | |
-| 9 | `ANALYSTE` | `SELECT COUNT(*) FROM NYC_TAXI.RAW.DRIVERS` | | | |
-| 9 bis | `ACCOUNTADMIN` | `SELECT first_name, email FROM NYC_TAXI.RAW.DRIVERS LIMIT 3` | | | |
+| 1 | `RH_PAIE` | `SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER` | 400 (tous les dépôts) | | |
+| 2 | `RESP_DEPOT_QUEENS` | la même | 161 (Queens seulement) | | |
+| 3 | `RESP_DEPOT_QUEENS` | `SELECT DISTINCT depot FROM NYC_TAXI.MARTS.DIM_DRIVER` | 1 ligne : `Queens` | | |
+| 4 | `RESP_DEPOT_BRONX` | `SELECT COUNT(*) FROM NYC_TAXI.MARTS.MART_DRIVER_MONTHLY` | 290 (Bronx seulement) | | |
+| 5 | `ANALYSTE` | `SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER` | 400 (tous les dépôts) | | |
+| 6 | `GOUVERNANCE` | la même | refusé : « does not exist or not authorized » (aucun `SELECT` sur les tables) | | |
+| 7 | `ACCOUNTADMIN` | la même | 0 : il a le droit de lire (hérité de `TRANSFORMER` par `SYSADMIN`), mais il est absent de `ACCES_DEPOT`, donc le filtre ne lui laisse aucune ligne | | |
+| 8 | `RH_PAIE` | `SELECT COUNT(*) FROM NYC_TAXI.RAW.DRIVER_SHIFTS` | refusé (aucun rôle métier ne lit `RAW`) | | |
+| 9 | `ANALYSTE` | `SELECT COUNT(*) FROM NYC_TAXI.RAW.DRIVERS` | refusé | | |
+| 9 bis | `ACCOUNTADMIN` | `SELECT first_name, email FROM NYC_TAXI.RAW.DRIVERS LIMIT 3` | 3 lignes (pas de filtre sur `RAW`), `first_name` = `*****`, `email` = `*****` (masquage par tag : seul `TRANSFORMER` voit en clair) | | |
+| 13 | `RESP_DEPOT_BRONX` | `SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER` | 122 | | |
+| 14 | `RESP_DEPOT_QUEENS` | `SELECT COUNT(*) FROM NYC_TAXI.MARTS.MART_DRIVER_MONTHLY` | 365 | | |
+| 15 | `RESP_DEPOT_QUEENS` | `SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER WHERE depot = 'Brooklyn'` | 0 (Brooklyn n'a pas de responsable dans la matrice) | | |
+| 16 | `ACCOUNTADMIN` | `SELECT COUNT(*) FROM NYC_TAXI.MARTS.MART_DRIVER_MONTHLY` | 0 | | |
+| 17 | `ANALYSTE` | `SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DEPOT` | 3 (référentiel sans filtre ni masque) | | |
 
 ### Valeurs visibles
 
-Pour le chauffeur `D0003`, la valeur que chaque rôle doit lire dans chaque colonne (ou « colonne absente », ou « ligne invisible »).
+Pour le chauffeur `D0003` (dépôt Queens), la valeur que chaque rôle doit lire dans chaque colonne (ou « colonne absente », ou « ligne invisible »).
 
 | Colonne | `RH_PAIE` | `RESP_DEPOT_QUEENS` | `RESP_DEPOT_BRONX` | `ANALYSTE` |
 |---|---|---|---|---|
-| nom et prénom | | | | |
-| e-mail | | | | |
-| téléphone | | | | |
-| date de naissance | | | | |
-| numéro de licence | | | | |
-| `driver_name` dans `MART_DRIVER_MONTHLY` | | | | |
+| nom et prénom | Anthony / Suarez | Anthony / Suarez | ligne invisible | `*****` / `*****` |
+| e-mail | `[adresse complète]` | `*****` | ligne invisible | `*****` |
+| téléphone | `+1 (917) 555-2473` | `+1 (917) 555-2473` | ligne invisible | `*****` |
+| date de naissance | `1981-12-07` | `NULL` | ligne invisible | `1981-01-01` (année seulement) |
+| numéro de licence | `5213863` | `*****` | ligne invisible | `*****` |
+| `driver_name` dans `MART_DRIVER_MONTHLY` | Anthony Suarez | Anthony Suarez | ligne invisible | `*****` |
+| `driver_id` | `D0003` | `D0003` | ligne invisible | `D0003` |
+
+| | Résultat |
+|---|---|
+| Obtenu | |
+| Vert ? | |
+
+### Cas limites
+
+| N° | Rôle | Requête | Attendu | Obtenu | Vert ? |
+|---|---|---|---|---|---|
+| 18 | `ANALYSTE` | `SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER WHERE email LIKE '%@%'` | 0 : le masque s'applique avant le filtre, l'analyste ne peut pas retrouver un chauffeur par son e-mail | | |
+| 19 | `ANALYSTE` | `SELECT driver_id FROM NYC_TAXI.MARTS.DIM_DRIVER WHERE driver_id = 'D0003'` | `D0003` (identifiant interne visible, contrat section 4) | | |
+| 20 | `GOUVERNANCE` puis `RESP_DEPOT_QUEENS` | ajouter `('RESP_DEPOT_QUEENS', 'Brooklyn')` dans `GOUVERNANCE.ACCES_DEPOT`, sans toucher à la politique, puis `SELECT COUNT(*) FROM NYC_TAXI.MARTS.DIM_DRIVER` | 278 (161 + 117) ; après suppression de la ligne : de nouveau 161 | | |
 
 ### Le pipeline fonctionne toujours
 

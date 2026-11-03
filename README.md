@@ -47,6 +47,7 @@ Le détail de la confrontation, règle par règle, est dans [`docs/VEILLE.md`](d
 | `driver_name` (`MART_DRIVER_MONTHLY`) | taguer `nom` | — | Colonne calculée à partir du prénom et du nom : c'est une donnée personnelle, masquée comme le nom. |
 | `depot`, `hire_date`, `end_date`, `is_active`, `tenure_years` | ne pas taguer `DONNEE_PERSONNELLE` | — | Ils ne désignent personne seuls, aucune des six valeurs du contrat ne leur correspond, et le contrat ne demande pas de les masquer. Ce sont pourtant des identifiants indirects : combinés à l'année de naissance, ils peuvent permettre de réidentifier un chauffeur (voir « Ce que nous proposons à la direction »). |
 | `first_name`, `last_name`, `email`, `phone`, `birth_date`, `tlc_license_number`, `driver_name` | masquer, pas supprimer | `ANALYSTE`, responsables de dépôt, administrateurs | Une même table sert la paie (tout en clair) et l'analyste (rien d'identifiant) : seul le masquage dynamique permet les deux sans dupliquer les tables. Deux politiques attachées au tag `DONNEE_PERSONNELLE` (une pour le texte, une pour les dates, car une politique renvoie le type qu'elle reçoit) : toute colonne taguée, dans `RAW` comme dans `MARTS`, est protégée sans autre geste. Le test de rôle utilise `CURRENT_ROLE()` et non `IS_ROLE_IN_SESSION()`, pour que `ACCOUNTADMIN`, qui hérite de `TRANSFORMER`, ne voie pas les données en clair. Les responsables de dépôt sont reconnus par le préfixe `RESP_DEPOT_`, pour qu'un nouveau dépôt ne demande aucune modification de politique. |
+| Lignes de `DIM_DRIVER` et `MART_DRIVER_MONTHLY` | filtrer par dépôt avec une politique d'accès par ligne pilotée par `GOUVERNANCE.ACCES_DEPOT` | responsables de dépôt ; administrateurs et rôles absents de la matrice | Qui voit quel dépôt est écrit dans des lignes, pas dans la politique : ouvrir un dépôt ou un accès = une ligne `INSERT`, sans modifier la politique (test 20). `*` = tous les dépôts (`TRANSFORMER`, `RH_PAIE`, `ANALYSTE`). `TRANSFORMER` doit y figurer, sinon le pipeline ne verrait aucune ligne et reconstruirait les marts vides, sans erreur. Les lignes de référence sont insérées par `MERGE` : le script est rejouable sans effacer un accès ajouté plus tard. Le filtre ne porte que sur `MARTS` (guide) ; `RAW` n'est lisible que par `TRANSFORMER` et, par héritage, par les administrateurs, pour qui les colonnes personnelles restent masquées (test 9 bis). |
 
 ### Ordre d'exécution des scripts
 
@@ -66,7 +67,8 @@ Chaque script s'exécute en entier dans une feuille Snowsight, avec le rôle ind
 | 10 | `snowflake/rh/catalogue/catalogue_*.sql` (4 fichiers) | `TRANSFORMER` | aucune colonne sans description dans `DIM_DRIVER` et `RAW.DRIVERS` ; 4 tables taguées |
 | 11 | `snowflake/gouvernance/02_roles_metier.sql` | `ACCOUNTADMIN` | `SHOW GRANTS TO ROLE RESP_DEPOT_QUEENS;` : USAGE + 3 SELECT ; relancé sans erreur |
 | 12 | `snowflake/gouvernance/03_masquage.sql` (partie A) | `GOUVERNANCE` | `SHOW MASKING POLICIES` : 2 politiques ; `POLICY_REFERENCES` sur `DIM_DRIVER` : attachées par le tag ; relancé sans erreur |
-| 13 | ______ | | |
+| 13 | `snowflake/gouvernance/04_acces_depot.sql` (partie A) | `GOUVERNANCE` | `ACCES_DEPOT` : 5 lignes ; `RESP_DEPOT_QUEENS` voit 161 chauffeurs ; relancé sans erreur |
+| 14 | ______ | | |
 
 ### Le chargement, étape par étape
 
@@ -84,3 +86,7 @@ Résultat : 400 chauffeurs, 25 951 services, stage vide (captures `docs/capture_
 ### Limites connues
 
 <!-- À compléter au fil des jours, sans détour -->
+
+- `ALTER TABLE ... DROP ALL ROW ACCESS POLICIES` dans `04_acces_depot.sql` retirerait aussi une autre politique d'accès par ligne posée plus tard sur ces tables.
+- Le filtre par dépôt ne distingue pas chauffeurs en poste et chauffeurs partis : un responsable voit pendant 5 ans le nom et le téléphone de ses anciens chauffeurs (écart principal, voir plus haut).
+- `GOUVERNANCE` peut modifier `ACCES_DEPOT` et les politiques : il ne lit pas les données, mais il peut s'en ouvrir l'accès à un autre rôle. Ses modifications sont tracées dans `ACCESS_HISTORY` et `QUERY_HISTORY` (requête d'audit du jour 3).
