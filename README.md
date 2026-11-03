@@ -92,7 +92,8 @@ Chaque script s'exécute en entier dans une feuille Snowsight, avec le rôle ind
 | 17 | `snowflake/rh/controles/*.sql` (4 règles) | `TRANSFORMER` | licence_unique 4, service_rattache 25, depot_connu 9, telephone_renseigne 12 / 14,50 |
 | 18 | `snowflake/rh/catalogue/v_catalogue.sql` | `TRANSFORMER` | 24 lignes ; `ANALYSTE` lit la vue et y trouve les 3 tables |
 | 19 | `snowflake/rh/taches_rh.sql` (partie A) | `TRANSFORMER` | 3 tâches `started` ; après `EXECUTE TASK` : `T_PURGE`, `T_QUALITE`, `T_TABLES` en `SUCCEEDED`, 4 lignes dans `QUALITE_RESULTATS` |
-| 20 | ______ | | |
+| 20 | `snowflake/gouvernance/06_audit.sql` | `ACCOUNTADMIN` | les rôles qui ont lu `DIM_DRIVER` ces 7 derniers jours, avec les colonnes (jusqu'à 3 h de latence) |
+| 21 | fin du brief : `ALTER TASK NYC_TAXI.MARTS.T_PURGE SUSPEND;` | `TRANSFORMER` | `SHOW TASKS` : `suspended` (les tâches activées consomment des crédits) |
 
 ### Le chargement, étape par étape
 
