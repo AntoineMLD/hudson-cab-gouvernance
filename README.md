@@ -89,4 +89,4 @@ Résultat : 400 chauffeurs, 25 951 services, stage vide (captures `docs/capture_
 
 - `ALTER TABLE ... DROP ALL ROW ACCESS POLICIES` dans `04_acces_depot.sql` retirerait aussi une autre politique d'accès par ligne posée plus tard sur ces tables.
 - Le filtre par dépôt ne distingue pas chauffeurs en poste et chauffeurs partis : un responsable voit pendant 5 ans le nom et le téléphone de ses anciens chauffeurs (écart principal, voir plus haut).
-- `GOUVERNANCE` peut modifier `ACCES_DEPOT` et les politiques : il ne lit pas les données, mais il peut s'en ouvrir l'accès à un autre rôle. Ses modifications sont tracées dans `ACCESS_HISTORY` et `QUERY_HISTORY` (requête d'audit du jour 3).
+- `GOUVERNANCE` peut modifier `ACCES_DEPOT` et les politiques : il ne lit pas les données, mais il peut en ouvrir l'accès à un autre rôle. Ses modifications sont tracées dans `ACCESS_HISTORY` et `QUERY_HISTORY` (requête d'audit du jour 3).
